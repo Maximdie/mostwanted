@@ -3,3 +3,4 @@ Allow: /
 Disallow: /admin/
 
 Sitemap: https://mostwanted.consulting/sitemap.xml
+Sitemap: https://mostwanted.consulting/news/sitemap.xml

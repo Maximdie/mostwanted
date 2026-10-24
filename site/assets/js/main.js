@@ -129,7 +129,7 @@
   /* Home page: latest news (the block stays hidden until there is something to show) */
   var latest = document.querySelector('[data-latest-news]');
   if (latest && window.fetch) {
-    fetch('news.php?format=json', { credentials: 'omit' })
+    fetch('/news/?format=json', { credentials: 'omit' })
       .then(function (r) { return r.ok ? r.json() : []; })
       .then(function (items) {
         if (!Array.isArray(items) || !items.length) return;

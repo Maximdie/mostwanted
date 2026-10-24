@@ -216,7 +216,7 @@ function view_layout($title, $content, $editor = false)
   <a class="bar__brand" href="./"><span class="bar__mark">ИВ</span><span>Новости сайта</span></a>
   <?php if ($logged): ?>
   <nav class="bar__nav">
-    <a href="/news.php" target="_blank" rel="noopener">Открыть сайт</a>
+    <a href="/news/" target="_blank" rel="noopener">Открыть сайт</a>
     <a href="?a=password">Пароль</a>
     <form method="post" action="?a=logout"><input type="hidden" name="csrf" value="<?= h($_SESSION['csrf']) ?>"><button type="submit">Выйти</button></form>
   </nav>

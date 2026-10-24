@@ -4,8 +4,22 @@
 
 Все тексты лежат здесь. После правки запустите:  python build.py
 Готовый сайт — в папке site/ (её целиком и заливать на хостинг).
+
+Адреса страниц — без .html (ЧПУ): /about, /services/red-notice, /news/.
+Ссылки в шаблонах можно писать как раньше (about.html, services/x.html) — при сборке
+они превращаются в абсолютные чистые адреса. Правила для хостинга — в site/.htaccess.
+
+Картинки для ссылок в мессенджерах и иконки рисует seo_images.py (нужен Pillow).
 """
+import json
 import os
+import posixpath
+import re
+
+try:
+    import seo_images
+except ImportError:  # без Pillow сайт собирается, просто не перерисовываются превью
+    seo_images = None
 
 ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'site')
 
@@ -16,8 +30,10 @@ WHATSAPP = 'https://wa.me/5491164113517'
 WHATSAPP_PHONE = '+54 9 11 6411-3517'
 FILM_ROUTE = 'https://filmfreeway.com/THEROUTEISSETATrusteesCase'
 SITE_NAME = 'Особо разыскиваемый управляющий'
+AUTHOR = 'Игорь Вышегородцев'
 DOMAIN = 'https://mostwanted.consulting'
 PAGES = []  # для sitemap.xml
+DIR_PAGES = {'/services'}  # разделы, у которых адрес со слешем на конце: /services/
 VERSION = __import__('time').strftime('%Y%m%d%H%M')  # сбрасывает кэш браузера при каждой сборке
 
 ICON_TG = ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3c.3-1.2-.9-2.2-2-1.7L2.8 9.4c-1.2.5-1.1 2.2.1 2.6l4.3 1.3 1.7 5.3c.3 1 1.6 1.3 2.3.5l2.4-2.4 4.4 3.2c.9.7 2.2.2 2.5-.9l3.4-14.7zM9.6 14.1l8.2-7.4-6.5 8.6-.3 3.1-1.4-4.3z"/></svg>')
@@ -41,20 +57,141 @@ def yt(video_id, label):
             f'<span class="yt__play">{ICON_PLAY}</span></button></div>')
 
 
+# ------------------------------------------------------------------ urls
+
+def clean_url(path):
+    """/about.html → /about, /services/index.html → /services/, /news.php → /news/."""
+    path, rest = re.match(r'([^?#]*)(.*)', path).groups()
+    if path.endswith('/index.html'):
+        path = path[:-len('index.html')]
+    elif path == '/news.php':
+        path = '/news/'
+    elif path.endswith('.html'):
+        path = path[:-len('.html')]
+        if path in DIR_PAGES:
+            path += '/'
+    return path + rest
+
+
+def absolutize(html, base):
+    """Относительные ссылки (как они написаны в шаблонах) → абсолютные чистые адреса."""
+    def fix(m):
+        attr, value = m.group(1), m.group(2)
+        if not value or '<?' in value or re.match(r'(?:[a-z]+:|#|//)', value):
+            return m.group(0)
+        if not value.startswith('/'):
+            path, rest = re.match(r'([^?#]*)(.*)', value).groups()
+            value = posixpath.normpath(posixpath.join('/' + base, path)) + rest
+        return f'{attr}"{clean_url(value)}"'
+    return re.sub(r'(\s(?:href|src|srcset|data-full)=)"([^"]*)"', fix, html)
+
+
+def jsonld(data):
+    return ('<script type="application/ld+json">'
+            + json.dumps(data, ensure_ascii=False, separators=(',', ':')).replace('</', '<\\/')
+            + '</script>')
+
+
+# ------------------------------------------------------------------ structured data (schema.org)
+
+PERSON_ID = f'{DOMAIN}/#person'
+WEBSITE_ID = f'{DOMAIN}/#website'
+PERSON = {
+    '@type': 'Person', '@id': PERSON_ID,
+    'name': AUTHOR, 'alternateName': SITE_NAME,
+    'url': f'{DOMAIN}/', 'image': f'{DOMAIN}/assets/img/portrait.jpg',
+    'jobTitle': 'Консультант по защите от международного розыска и экстрадиции',
+    'description': 'Арбитражный управляющий с 1999 по 2022 год, более 130 процедур банкротства. '
+                   'Дважды добился снятия Red Notice Интерпола. Помогает защититься от экстрадиции и подготовиться к релокации.',
+    'email': f'mailto:{EMAIL}', 'telephone': '+5491164113517',
+    'sameAs': [TG_PERSONAL, TG_CHANNEL, 'https://probankrotstvo.ru/persons/igor-vysegorodcev-244'],
+    'alumniOf': [{'@type': 'CollegeOrUniversity', 'name': 'Воронежский инженерно-строительный институт'},
+                 {'@type': 'CollegeOrUniversity', 'name': 'Воронежский экономико-правовой институт'}],
+    'knowsAbout': ['Red Notice Интерпола', 'Экстрадиция', 'Комиссия по контролю за файлами Интерпола (CCF)',
+                   'Банкротство', 'Арбитражное управление', 'Релокация', 'Второе гражданство', 'ЕСПЧ'],
+}
+WEBSITE = {'@type': 'WebSite', '@id': WEBSITE_ID, 'url': f'{DOMAIN}/', 'name': SITE_NAME,
+           'alternateName': AUTHOR, 'inLanguage': 'ru', 'publisher': {'@id': PERSON_ID}}
+
+
+def video_ld(video_id, name, description, uploaded, duration):
+    return {'@type': 'VideoObject', 'name': name, 'description': description,
+            'thumbnailUrl': f'https://i.ytimg.com/vi/{video_id}/hqdefault.jpg', 'uploadDate': uploaded,
+            'duration': duration, 'embedUrl': f'https://www.youtube.com/embed/{video_id}',
+            'contentUrl': f'https://www.youtube.com/watch?v={video_id}', 'inLanguage': 'ru'}
+
+
+OG_DEFAULT = dict(title=SITE_NAME, kicker='Дважды снял Red Notice Интерпола',
+                  photo='assets/img/echr-desk.jpg', focus=(0.6, 0.4))
+PORTRAIT_FOCUS = (0.5, 0.2)
+
+VIDEOS = {
+    'n9QGtc2pb-E': video_ld('n9QGtc2pb-E', '«Управляющий» (The Manager)',
+                            'Фильм об арбитражном управляющем из России Игоре Вышегородцеве: о работе по закону в стране '
+                            'беззакония и несправедливом уголовном преследовании. Участник трёх кинофестивалей, два приза.',
+                            '2024-02-03T03:40:40-08:00', 'PT14M26S'),
+    'qr02aXK6TLQ': video_ld('qr02aXK6TLQ', 'Дважды в розыске Интерпола: как так? — интервью ARGA',
+                            'Игорь Вышегородцев о том, как дважды оказался в международном розыске и оба раза добился '
+                            'снятия Red Notice. Без взяток и без побега.', '2025-07-27T11:10:37-07:00', 'PT40M36S'),
+    '1SsDqryk6t0': video_ld('1SsDqryk6t0', 'Уголовные риски в банкротстве. Дело Игоря Вышегородцева',
+                            'Как из «Абордажного управляющего» я стал «Особо разыскиваемым управляющим»: о профессии, '
+                            'уголовном деле и охоте системы на арбитражного управляющего.', '2026-08-22T07:41:06-07:00', 'PT46M16S'),
+}
+
+
 # ------------------------------------------------------------------ layout
 
-def page(*, path, title, description, body, active=None, solid=True, og_image='assets/img/echr-desk.jpg',
-         prelude='', canonical=None, og_image_url=None):
-    depth = path.count('/')
-    r = '../' * depth
+def og_card(url, og):
+    """Рисует картинку-превью страницы (если есть Pillow) и возвращает её адрес."""
+    name = url.strip('/').replace('/', '-') or 'home'
+    rel = f'assets/img/og/{name}.jpg'
+    if seo_images:
+        seo_images.og_card(os.path.join(ROOT, *rel.split('/')), og['title'], og.get('kicker', ''),
+                           os.path.join(ROOT, *og['photo'].split('/')), og.get('focus', (0.5, 0.3)))
+    return f'{DOMAIN}/{rel}'
+
+
+def page(*, path, title, description, body, active=None, solid=True, base=None, og=None,
+         crumbs=None, schema=(), page_type='WebPage', robots='index, follow', sitemap=True,
+         prelude='', head_extra='', canonical=None, og_image_url=None, og_type='website'):
+    """
+    path   — куда положить файл внутри site/
+    base   — папка, относительно которой написаны ссылки в body (по умолчанию — папка файла)
+    og     — dict(title, kicker, photo, focus) для картинки-превью
+    crumbs — [(href, label), ...] хлебные крошки для Google, последняя — текущая страница
+    schema — дополнительные объекты schema.org для этой страницы
+    """
+    base = posixpath.dirname(path) if base is None else base
+    r = '../' * (base.count('/') + 1 if base else 0)
     nav = ''.join(
         f'<a class="nav__link" href="{r}{href}"{" aria-current=\"page\"" if href == active else ""}>{label}</a>'
         for href, label in NAV)
-    full_title = title if title == SITE_NAME else f'{title} — {SITE_NAME}'
-    url = DOMAIN + '/' + ('' if path == 'index.html' else path)
-    PAGES.append(url)
+    full_title = title if title.startswith(AUTHOR) else f'{title} — {AUTHOR}'
+    url = DOMAIN + clean_url('/' + path)
+    if sitemap:
+        PAGES.append(url)
     canonical = canonical or url
-    og_image_url = og_image_url or f'{DOMAIN}/{og_image}'
+    og_size = ''
+    if og_image_url is None:
+        og_image_url = og_card(clean_url('/' + path), og or OG_DEFAULT)
+        og_size = '\n<meta property="og:image:width" content="1200">\n<meta property="og:image:height" content="630">'
+
+    graph = [WEBSITE, PERSON] + list(schema)
+    if page_type:
+        webpage = {'@type': page_type, '@id': f'{url}#webpage', 'url': url, 'name': full_title,
+                   'description': description, 'isPartOf': {'@id': WEBSITE_ID}, 'inLanguage': 'ru',
+                   'primaryImageOfPage': {'@type': 'ImageObject', 'url': og_image_url}}
+        if page_type == 'ProfilePage':
+            webpage['mainEntity'] = {'@id': PERSON_ID}
+        if crumbs:
+            items = [(f'{DOMAIN}/', 'Главная')] + [
+                (DOMAIN + clean_url(posixpath.normpath(posixpath.join('/' + base, h))) if h else url, label)
+                for h, label in crumbs]
+            graph.append({'@type': 'BreadcrumbList', '@id': f'{url}#breadcrumb', 'itemListElement': [
+                {'@type': 'ListItem', 'position': i, 'name': label, 'item': u} for i, (u, label) in enumerate(items, 1)]})
+            webpage['breadcrumb'] = {'@id': f'{url}#breadcrumb'}
+        graph.append(webpage)
+
     html = prelude + f'''<!doctype html>
 <html lang="ru">
 <head>
@@ -62,17 +199,27 @@ def page(*, path, title, description, body, active=None, solid=True, og_image='a
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{full_title}</title>
 <meta name="description" content="{description}">
+<meta name="robots" content="{robots}, max-image-preview:large, max-snippet:-1, max-video-preview:-1">
+<meta name="author" content="{AUTHOR}">
 <link rel="canonical" href="{canonical}">
-<meta property="og:type" content="website">
+<meta property="og:type" content="{og_type}">
 <meta property="og:url" content="{canonical}">
 <meta property="og:site_name" content="{SITE_NAME}">
 <meta property="og:locale" content="ru_RU">
 <meta property="og:title" content="{full_title}">
 <meta property="og:description" content="{description}">
-<meta property="og:image" content="{og_image_url}">
+<meta property="og:image" content="{og_image_url}">{og_size}
+<meta property="og:image:alt" content="{full_title}">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{full_title}">
+<meta name="twitter:description" content="{description}">
+<meta name="twitter:image" content="{og_image_url}">
 <meta name="theme-color" content="#0d1320">
-<link rel="icon" href="{r}assets/img/favicon.svg" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico" sizes="48x48">
+<link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/site.webmanifest">
+{jsonld({'@context': 'https://schema.org', '@graph': graph})}{head_extra}
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Playfair+Display:ital,wght@0,400;0,600;1,400&display=swap&subset=cyrillic" rel="stylesheet">
@@ -146,8 +293,8 @@ def page(*, path, title, description, body, active=None, solid=True, og_image='a
     out = os.path.join(ROOT, *path.split('/'))
     os.makedirs(os.path.dirname(out), exist_ok=True)
     with open(out, 'w', encoding='utf-8', newline='\n') as f:
-        f.write(html)
-    print('  ', path)
+        f.write(absolutize(html, base))
+    print('  ', path, '→', clean_url('/' + path))
 
 
 def page_head(title, lead, crumbs, eyebrow=None, bg=None, r='', mod=''):
@@ -587,9 +734,9 @@ def build_index():
   </div>
 </section>
 '''
-    page(path='index.html', title=SITE_NAME, solid=False,
+    page(path='index.html', title=f'{AUTHOR} — {SITE_NAME}', solid=False,
          description='Игорь Вышегородцев — дважды снял с себя Red Notice Интерпола. Защита от экстрадиции, релокация, второй паспорт, экспертиза уголовных дел.',
-         body=body)
+         body=body, og=OG_DEFAULT)
 
 
 def build_about():
@@ -764,8 +911,10 @@ def build_about():
 </dialog>
 '''
     page(path='about.html', title='Обо мне', active='about.html',
-         description='Игорь Вышегородцев: 25 лет арбитражным управляющим, дважды в розыске Интерпола и дважды доказал невиновность. Интервью, рассказ, резюме, сертификаты.',
-         body=body)
+         description='Игорь Вышегородцев: 25 лет арбитражным управляющим, дважды в розыске Интерпола и дважды доказал невиновность. Фильмы, интервью, рассказ, резюме, сертификаты.',
+         body=body, page_type='ProfilePage', crumbs=[(None, 'Обо мне')], schema=list(VIDEOS.values()),
+         og=dict(title='Дважды в розыске Интерпола — и дважды доказал, что не виновен', kicker='Обо мне',
+                 photo='assets/img/portrait.jpg', focus=PORTRAIT_FOCUS))
 
 
 def build_services():
@@ -782,9 +931,14 @@ def build_services():
   </div>
 </section>
 '''
-    page(path='services.html', title='Чем я могу помочь', active='services.html',
+    page(path='services/index.html', base='', title='Чем я могу помочь', active='services.html',
          description='Снятие Red Notice, защита от экстрадиции, релокация и адаптация, второй паспорт, счёт и компания в США, онлайн-доверенность, онлайн-свадьба.',
-         body=body)
+         body=body, page_type='CollectionPage', crumbs=[(None, 'Чем могу помочь')],
+         schema=[{'@type': 'ItemList', 'name': 'Услуги', 'itemListElement': [
+             {'@type': 'ListItem', 'position': i, 'name': s['title'], 'url': f'{DOMAIN}/services/{s["slug"]}'}
+             for i, s in enumerate(SERVICES, 1)]}],
+         og=dict(title='Чем я могу вам помочь', kicker=f'{len(SERVICES)} направлений защиты',
+                 photo='assets/img/echr-desk.jpg', focus=(0.92, 0.4)))
 
     for i, s in enumerate(SERVICES):
         prev_s = SERVICES[i - 1]
@@ -817,8 +971,15 @@ def build_services():
   </div>
 </section>
 '''
+        url = f'{DOMAIN}/services/{s["slug"]}'
         page(path=f'services/{s["slug"]}.html', title=s['title'], active='services.html',
-             description=s['short'], body=body)
+             description=s['short'], body=body, crumbs=[('services.html', 'Чем могу помочь'), (None, s['title'])],
+             schema=[{'@type': 'Service', '@id': f'{url}#service', 'name': s['title'], 'serviceType': s['title'],
+                      'description': s['short'], 'url': url, 'provider': {'@id': PERSON_ID},
+                      'areaServed': {'@type': 'Place', 'name': 'Весь мир'}, 'availableLanguage': 'ru'}],
+             og=dict(title=s['title'], kicker='Чем я могу помочь',
+                     **(dict(photo='assets/img/portrait.jpg', focus=PORTRAIT_FOCUS) if i % 2 == 0
+                        else dict(photo='assets/img/echr-desk.jpg', focus=(0.92, 0.4)))))
 
 
 def build_advice():
@@ -862,8 +1023,10 @@ def build_advice():
 </section>
 '''
     page(path='advice.html', title='Советы: как подготовиться к релокации', active='advice.html',
-         description='26 пунктов: как подготовиться к релокации при угрозе уголовного дела и задержания. Видео и чек-лист от особо разыскиваемого управляющего.',
-         body=body)
+         description=f'{len(ADVICE)} пунктов: как подготовиться к релокации при угрозе уголовного дела и задержания. Видео и чек-лист от особо разыскиваемого управляющего.',
+         body=body, crumbs=[(None, 'Советы')],
+         og=dict(title='Как подготовиться к релокации, если грозит уголовное дело',
+                 kicker=f'{len(ADVICE)} советов · чек-лист', photo='assets/img/rodina.jpg', focus=(0.5, 0.5)))
 
 
 # Новости хранятся на хостинге (их пишут через /admin/), поэтому news.php собирается
@@ -876,9 +1039,10 @@ $item = $id ? news_find($id) : null;
 if ($item && empty($item['published']) && !admin_logged_in()) {
     $item = null;
 }
+$format = isset($_GET['format']) ? $_GET['format'] : '';
 
 // Три свежие новости для главной страницы
-if (isset($_GET['format']) && $_GET['format'] === 'json') {
+if ($format === 'json') {
     header('Content-Type: application/json; charset=utf-8');
     $out = [];
     foreach (array_slice(news_published(), 0, 3) as $n) {
@@ -889,19 +1053,35 @@ if (isset($_GET['format']) && $_GET['format'] === 'json') {
     exit;
 }
 
-if ($id && !$item) {
-    http_response_code(404);
+// Карта сайта для новостей: /news/sitemap.xml
+if ($format === 'sitemap') {
+    header('Content-Type: application/xml; charset=utf-8');
+    echo news_sitemap('%DOMAIN%');
+    exit;
 }
+
 $all = $id ? [] : news_published();
 $pages = max(1, (int)ceil(count($all) / NEWS_PER_PAGE));
 $p = min($pages, max(1, (int)(isset($_GET['page']) ? $_GET['page'] : 1)));
 $list = array_slice($all, ($p - 1) * NEWS_PER_PAGE, NEWS_PER_PAGE);
 
+// У каждой страницы один адрес: /news.php?id=5 и /news/5-staryi-zagolovok ведут на /news/5-zagolovok
+$path = parse_url(isset($_SERVER['REQUEST_URI']) ? $_SERVER['REQUEST_URI'] : '/', PHP_URL_PATH);
+$want = $item ? news_url($item) : ($id ? null : '/news/');
+if ($want && $path !== $want) {
+    header('Location: ' . $want . (!$item && $p > 1 ? '?page=' . $p : ''), true, 301);
+    exit;
+}
+if ($id && !$item) {
+    http_response_code(404);
+}
+
 $cover = $item ? news_cover($item) : null;
 $metaTitle = $item ? $item['title'] : ($id ? 'Новость не найдена' : 'Новости');
 $metaDesc = $item ? news_excerpt($item, 160) : '%LIST_DESC%';
-$canonical = '%DOMAIN%/news.php' . ($item ? '?id=' . $item['id'] : ($p > 1 ? '?page=' . $p : ''));
-$ogImage = $cover ? ($cover[0] === '/' ? '%DOMAIN%' . $cover : $cover) : '%DOMAIN%/assets/img/echr-desk.jpg';
+$canonical = '%DOMAIN%' . ($item ? news_url($item) : '/news/' . ($p > 1 ? '?page=' . $p : ''));
+$ogImage = $cover ? ($cover[0] === '/' ? '%DOMAIN%' . $cover : $cover) : '%DOMAIN%/assets/img/og/news.jpg';
+$robots = ($id && !$item) || ($item && empty($item['published'])) ? 'noindex, follow' : 'index, follow';
 ?>
 '''
 
@@ -909,6 +1089,8 @@ $ogImage = $cover ? ($cover[0] === '/' ? '%DOMAIN%' . $cover : $cover) : '%DOMAI
 def build_news():
     list_desc = 'Новости Игоря Вышегородцева: выступления, интервью, публикации и события.'
     prelude = NEWS_PRELUDE.replace('%DOMAIN%', DOMAIN).replace('%LIST_DESC%', list_desc)
+    og_card('/news/', dict(title='Новости', kicker='Выступления, интервью, события',
+                           photo='assets/img/hero-echr.jpg', focus=(0.5, 0.4)))
     date = "<?= h(news_date_ru($item['date'])) ?>"
     item_head = page_head("<?= h($item['title']) ?>", '', [('news.php', 'Новости'), (None, 'Новость')],
                           eyebrow=date, bg='assets/img/echr-desk.jpg', mod='page-head--news')
@@ -956,7 +1138,7 @@ def build_news():
 <?php if ($pages > 1): ?>
     <nav class="news-pages" aria-label="Страницы новостей">
 <?php for ($i = 1; $i <= $pages; $i++): ?>
-      <a href="news.php<?= $i > 1 ? '?page=' . $i : '' ?>"<?= $i === $p ? ' aria-current="page"' : '' ?>><?= $i ?></a>
+      <a href="/news/<?= $i > 1 ? '?page=' . $i : '' ?>"<?= $i === $p ? ' aria-current="page"' : '' ?>><?= $i ?></a>
 <?php endfor; ?>
     </nav>
 <?php endif; ?>
@@ -971,23 +1153,71 @@ def build_news():
 </section>
 <?php endif; ?>
 '''
+    head_extra = '''
+<?php if ($item): ?>
+<meta property="article:published_time" content="<?= h($item['date']) ?>">
+<meta property="article:author" content="%DOMAIN%/about">
+<?php endif; ?>
+<?= news_jsonld('%DOMAIN%', $item, $canonical, $ogImage, $list) ?>'''.replace('%DOMAIN%', DOMAIN)
     page(path='news.php', title='<?= h($metaTitle) ?>', active='news.php',
-         description='<?= h($metaDesc) ?>', body=body, prelude=prelude,
-         canonical='<?= h($canonical) ?>', og_image_url='<?= h($ogImage) ?>')
+         description='<?= h($metaDesc) ?>', body=body, prelude=prelude, head_extra=head_extra,
+         canonical='<?= h($canonical) ?>', og_image_url='<?= h($ogImage) ?>',
+         og_type="<?= $item ? 'article' : 'website' ?>", robots='<?= $robots ?>',
+         page_type=None, sitemap=False)
+
+
+def build_404():
+    body = f'''
+{page_head('Страница не найдена', 'Возможно, адрес изменился или в нём опечатка. Начните с главной — или сразу напишите мне.', [(None, '404')], eyebrow='Ошибка 404', bg='assets/img/echr-bench.jpg')}
+<section class="section section--tight">
+  <div class="wrap btn-row">
+    <a class="btn btn--primary" href="index.html">На главную</a>
+    <a class="btn btn--ghost" href="services.html">Чем я могу помочь</a>
+    <a class="btn btn--ghost" href="{TG_PERSONAL}" target="_blank" rel="noopener">{ICON_TG}Написать в Telegram</a>
+  </div>
+</section>
+'''
+    page(path='404.html', title='Страница не найдена', description='Такой страницы нет на сайте.',
+         body=body, robots='noindex, follow', sitemap=False, page_type=None,
+         og_image_url=f'{DOMAIN}/assets/img/og/home.jpg')
+
+
+def write(name, text):
+    with open(os.path.join(ROOT, name), 'w', encoding='utf-8', newline='\n') as f:
+        f.write(text)
+    print('  ', name)
+
+
+def build_meta():
+    """Иконки, манифест, robots.txt и карта сайта."""
+    if seo_images:
+        seo_images.icons(os.path.join(ROOT, 'assets', 'img', 'icons'))
+        for name in ('favicon.ico', 'apple-touch-icon.png'):  # браузеры ищут их в корне сайта
+            os.replace(os.path.join(ROOT, 'assets', 'img', 'icons', name), os.path.join(ROOT, name))
+    write('site.webmanifest', json.dumps({
+        'name': f'{AUTHOR} — {SITE_NAME}', 'short_name': AUTHOR, 'lang': 'ru', 'start_url': '/',
+        'display': 'browser', 'background_color': '#0d1320', 'theme_color': '#0d1320',
+        'icons': [{'src': '/assets/img/icons/icon-192.png', 'sizes': '192x192', 'type': 'image/png', 'purpose': 'any maskable'},
+                  {'src': '/assets/img/icons/icon-512.png', 'sizes': '512x512', 'type': 'image/png', 'purpose': 'any maskable'}],
+    }, ensure_ascii=False, indent=2) + '\n')
+    write('robots.txt', f'User-agent: *\nAllow: /\nDisallow: /admin/\n\n'
+                        f'Sitemap: {DOMAIN}/sitemap.xml\nSitemap: {DOMAIN}/news/sitemap.xml\n')
+    urls = ''.join(f'  <url><loc>{u}</loc></url>\n' for u in PAGES)
+    write('sitemap.xml', '<?xml version="1.0" encoding="UTF-8"?>\n'
+                         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + urls + '</urlset>\n')
 
 
 if __name__ == '__main__':
     import sys
     sys.stdout.reconfigure(encoding='utf-8')
     print('Сборка сайта в', ROOT)
+    if not seo_images:
+        print('   (Pillow не установлен — картинки-превью и иконки не обновлены: pip install pillow)')
     build_index()
     build_about()
     build_services()
     build_advice()
     build_news()
-    sitemap = ''.join(f'  <url><loc>{u}</loc></url>\n' for u in PAGES)
-    with open(os.path.join(ROOT, 'sitemap.xml'), 'w', encoding='utf-8', newline='\n') as f:
-        f.write('<?xml version="1.0" encoding="UTF-8"?>\n'
-                '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' + sitemap + '</urlset>\n')
-    print('   sitemap.xml')
+    build_404()
+    build_meta()
     print('Готово.')

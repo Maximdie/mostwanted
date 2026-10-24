@@ -166,9 +166,86 @@ function news_cover(array $n)
     return null;
 }
 
+/** «Выступил на форуме» → «vystupil-na-forume» — для красивого адреса новости. */
+function news_slug($title)
+{
+    static $map = [
+        'а' => 'a', 'б' => 'b', 'в' => 'v', 'г' => 'g', 'д' => 'd', 'е' => 'e', 'ё' => 'e', 'ж' => 'zh',
+        'з' => 'z', 'и' => 'i', 'й' => 'y', 'к' => 'k', 'л' => 'l', 'м' => 'm', 'н' => 'n', 'о' => 'o',
+        'п' => 'p', 'р' => 'r', 'с' => 's', 'т' => 't', 'у' => 'u', 'ф' => 'f', 'х' => 'kh', 'ц' => 'ts',
+        'ч' => 'ch', 'ш' => 'sh', 'щ' => 'shch', 'ъ' => '', 'ы' => 'y', 'ь' => '', 'э' => 'e', 'ю' => 'yu',
+        'я' => 'ya', 'є' => 'e', 'і' => 'i', 'ї' => 'yi', 'ґ' => 'g',
+    ];
+    $s = strtr(mb_strtolower((string)$title, 'UTF-8'), $map);
+    $s = trim(preg_replace('~[^a-z0-9]+~', '-', $s), '-');
+    if (strlen($s) > 60) {
+        $s = substr($s, 0, 61);
+        $s = strpos($s, '-') !== false ? substr($s, 0, strrpos($s, '-')) : substr($s, 0, 60);
+    }
+    return $s;
+}
+
 function news_url(array $n)
 {
-    return '/news.php?id=' . (int)$n['id'];
+    $slug = news_slug($n['title']);
+    return '/news/' . (int)$n['id'] . ($slug !== '' ? '-' . $slug : '');
+}
+
+/** Разметка schema.org для Google: новость (NewsArticle) или список новостей, плюс хлебные крошки. */
+function news_jsonld($domain, $item, $canonical, $image, array $list)
+{
+    $person = $domain . '/#person';
+    $crumbs = [['Главная', $domain . '/'], ['Новости', $domain . '/news/']];
+    if ($item) {
+        $crumbs[] = [$item['title'], $canonical];
+    }
+    $graph = [[
+        '@type' => 'BreadcrumbList', '@id' => $canonical . '#breadcrumb',
+        'itemListElement' => array_map(function ($c, $i) {
+            return ['@type' => 'ListItem', 'position' => $i + 1, 'name' => $c[0], 'item' => $c[1]];
+        }, $crumbs, array_keys($crumbs)),
+    ]];
+    if ($item) {
+        $graph[] = [
+            '@type' => 'NewsArticle', '@id' => $canonical . '#article',
+            'headline' => mb_substr($item['title'], 0, 110, 'UTF-8'),
+            'description' => news_excerpt($item, 160),
+            'image' => [$image],
+            'datePublished' => $item['date'],
+            'dateModified' => isset($item['updated']) ? $item['updated'] : $item['date'],
+            'author' => ['@type' => 'Person', '@id' => $person, 'name' => 'Игорь Вышегородцев', 'url' => $domain . '/about'],
+            'publisher' => ['@id' => $person],
+            'mainEntityOfPage' => $canonical,
+            'breadcrumb' => ['@id' => $canonical . '#breadcrumb'],
+            'isPartOf' => ['@id' => $domain . '/#website'],
+            'inLanguage' => 'ru',
+        ];
+    } else {
+        $graph[] = [
+            '@type' => 'CollectionPage', '@id' => $canonical . '#webpage', 'url' => $canonical,
+            'name' => 'Новости — Игорь Вышегородцев', 'inLanguage' => 'ru',
+            'isPartOf' => ['@id' => $domain . '/#website'],
+            'breadcrumb' => ['@id' => $canonical . '#breadcrumb'],
+            'mainEntity' => ['@type' => 'ItemList', 'itemListElement' => array_map(function ($n, $i) use ($domain) {
+                return ['@type' => 'ListItem', 'position' => $i + 1, 'url' => $domain . news_url($n), 'name' => $n['title']];
+            }, $list, array_keys($list))],
+        ];
+    }
+    $json = json_encode(['@context' => 'https://schema.org', '@graph' => $graph],
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP);
+    return '<script type="application/ld+json">' . $json . '</script>';
+}
+
+function news_sitemap($domain)
+{
+    $out = '<?xml version="1.0" encoding="UTF-8"?>' . "\n"
+        . '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' . "\n"
+        . '  <url><loc>' . h($domain . '/news/') . '</loc></url>' . "\n";
+    foreach (news_published() as $n) {
+        $modified = substr(isset($n['updated']) ? $n['updated'] : $n['date'], 0, 10);
+        $out .= '  <url><loc>' . h($domain . news_url($n)) . '</loc><lastmod>' . h($modified) . '</lastmod></url>' . "\n";
+    }
+    return $out . '</urlset>' . "\n";
 }
 
 // ------------------------------------------------------------------ HTML cleaning
