@@ -11,12 +11,19 @@ ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'site')
 
 TG_PERSONAL = 'https://t.me/AllegatorSnap'
 TG_CHANNEL = 'https://t.me/mostwantedmanager'
+EMAIL = 'AllegatorSnap@protonmail.com'
+WHATSAPP = 'https://wa.me/5491164113517'
+WHATSAPP_PHONE = '+54 9 11 6411-3517'
+FILM_ROUTE = 'https://filmfreeway.com/THEROUTEISSETATrusteesCase'
 SITE_NAME = 'Особо разыскиваемый управляющий'
 DOMAIN = 'https://mostwanted.consulting'
 PAGES = []  # для sitemap.xml
 VERSION = __import__('time').strftime('%Y%m%d%H%M')  # сбрасывает кэш браузера при каждой сборке
 
 ICON_TG = ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21.9 4.3c.3-1.2-.9-2.2-2-1.7L2.8 9.4c-1.2.5-1.1 2.2.1 2.6l4.3 1.3 1.7 5.3c.3 1 1.6 1.3 2.3.5l2.4-2.4 4.4 3.2c.9.7 2.2.2 2.5-.9l3.4-14.7zM9.6 14.1l8.2-7.4-6.5 8.6-.3 3.1-1.4-4.3z"/></svg>')
+ICON_WA = ('<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8-.2-.1-.4-.1-.6.1l-.8 1c-.1.2-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.3-.4.2-.4.7-1.4.1-.2 0-.3 0-.5l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.5.1-.7.3-.2.3-.9.9-.9 2.2s.9 2.5 1 2.7c.1.2 1.8 2.8 4.4 3.9 1.6.7 2.3.8 3.1.6.5-.1 1.5-.6 1.7-1.2.2-.6.2-1.1.2-1.2-.1-.2-.3-.2-.5-.3z"/></svg>')
+ICON_MAIL = ('<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">'
+             '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3.5 6.5l8.5 6.5 8.5-6.5"/></svg>')
 ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l13-7.5z"/></svg>'
 ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
 ARROW = '<span aria-hidden="true">→</span>'
@@ -25,6 +32,7 @@ NAV = [
     ('about.html', 'Обо мне'),
     ('services.html', 'Чем могу помочь'),
     ('advice.html', 'Советы'),
+    ('news.php', 'Новости'),
 ]
 
 
@@ -35,7 +43,8 @@ def yt(video_id, label):
 
 # ------------------------------------------------------------------ layout
 
-def page(*, path, title, description, body, active=None, solid=True, og_image='assets/img/echr-desk.jpg'):
+def page(*, path, title, description, body, active=None, solid=True, og_image='assets/img/echr-desk.jpg',
+         prelude='', canonical=None, og_image_url=None):
     depth = path.count('/')
     r = '../' * depth
     nav = ''.join(
@@ -44,21 +53,23 @@ def page(*, path, title, description, body, active=None, solid=True, og_image='a
     full_title = title if title == SITE_NAME else f'{title} — {SITE_NAME}'
     url = DOMAIN + '/' + ('' if path == 'index.html' else path)
     PAGES.append(url)
-    html = f'''<!doctype html>
+    canonical = canonical or url
+    og_image_url = og_image_url or f'{DOMAIN}/{og_image}'
+    html = prelude + f'''<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{full_title}</title>
 <meta name="description" content="{description}">
-<link rel="canonical" href="{url}">
+<link rel="canonical" href="{canonical}">
 <meta property="og:type" content="website">
-<meta property="og:url" content="{url}">
+<meta property="og:url" content="{canonical}">
 <meta property="og:site_name" content="{SITE_NAME}">
 <meta property="og:locale" content="ru_RU">
 <meta property="og:title" content="{full_title}">
 <meta property="og:description" content="{description}">
-<meta property="og:image" content="{DOMAIN}/{og_image}">
+<meta property="og:image" content="{og_image_url}">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#0d1320">
 <link rel="icon" href="{r}assets/img/favicon.svg" type="image/svg+xml">
@@ -98,7 +109,7 @@ def page(*, path, title, description, body, active=None, solid=True, og_image='a
     <div class="contact-head reveal">
       <div class="eyebrow">Контакты</div>
       <h2>Расскажите о своей ситуации</h2>
-      <p>Пишите в Telegram — лично или через канал. Чем раньше вы начнёте защищаться, тем больше у вас вариантов.</p>
+      <p>Пишите в Telegram или WhatsApp, а если удобнее — на почту. Чем раньше вы начнёте защищаться, тем больше у вас вариантов.</p>
     </div>
     <div class="contacts">
       <a class="contact reveal" href="{TG_PERSONAL}" target="_blank" rel="noopener">
@@ -108,6 +119,14 @@ def page(*, path, title, description, body, active=None, solid=True, og_image='a
       <a class="contact reveal" href="{TG_CHANNEL}" target="_blank" rel="noopener">
         <span class="contact__icon">{ICON_TG}</span>
         <span><small>Telegram-канал</small><strong>@mostwantedmanager</strong><em>Новости и обратная связь — подписывайтесь</em></span>
+      </a>
+      <a class="contact reveal" href="{WHATSAPP}" target="_blank" rel="noopener">
+        <span class="contact__icon">{ICON_WA}</span>
+        <span><small>WhatsApp</small><strong>{WHATSAPP_PHONE}</strong><em>Или найдите по нику @AllegatorSnap</em></span>
+      </a>
+      <a class="contact contact--email reveal" href="mailto:{EMAIL}">
+        <span class="contact__icon">{ICON_MAIL}</span>
+        <span><small>Электронная почта</small><strong>{EMAIL.replace('@', '@<wbr>')}</strong><em>Для документов и подробных писем</em></span>
       </a>
     </div>
     <div class="footer__bottom">
@@ -131,19 +150,20 @@ def page(*, path, title, description, body, active=None, solid=True, og_image='a
     print('  ', path)
 
 
-def page_head(title, lead, crumbs, eyebrow=None, bg=None, r=''):
+def page_head(title, lead, crumbs, eyebrow=None, bg=None, r='', mod=''):
     cr = f'<a href="{r}index.html">Главная</a>'
     for href, label in crumbs:
         cr += '<span aria-hidden="true">/</span>' + (f'<a href="{r}{href}">{label}</a>' if href else f'<span>{label}</span>')
     bg_html = f'<img class="page-head__bg" src="{r}{bg}" alt="">' if bg else ''
     eb = f'<div class="eyebrow">{eyebrow}</div>' if eyebrow else ''
-    return f'''<section class="page-head">
+    lead_html = f'<p class="lead">{lead}</p>' if lead else ''
+    return f'''<section class="page-head{' ' + mod if mod else ''}">
   {bg_html}
   <div class="wrap">
     <nav class="crumbs" aria-label="Навигационная цепочка">{cr}</nav>
     {eb}
     <h1>{title}</h1>
-    <p class="lead">{lead}</p>
+    {lead_html}
   </div>
 </section>'''
 
@@ -493,8 +513,21 @@ def build_index():
         <li>Обучение в Совете Европы: обращение в Европейский суд по правам человека</li>
       </ul>
       <p class="signature">Я смогу вас защитить.</p>
-      <a class="link-arrow" href="about.html">Подробнее обо мне, интервью и рассказ {ARROW}</a>
+      <a class="link-arrow" href="about.html">Подробнее обо мне: фильмы, интервью и рассказ {ARROW}</a>
     </div>
+  </div>
+</section>
+
+<section class="section section--paper2" data-latest-news hidden>
+  <div class="wrap">
+    <div class="news-latest__head">
+      <div>
+        <div class="eyebrow">Новости</div>
+        <h2>Что нового</h2>
+      </div>
+      <a class="link-arrow" href="news.php">Все новости {ARROW}</a>
+    </div>
+    <div class="news-grid" data-latest-list></div>
   </div>
 </section>
 
@@ -633,6 +666,32 @@ def build_about():
   </div>
 </section>
 
+<section class="section section--dark" id="films">
+  <div class="wrap">
+    <div class="section-head reveal">
+      <div class="eyebrow">Кино</div>
+      <h2>Фильмы обо мне</h2>
+    </div>
+    <div class="videos">
+      <div class="video-card reveal">
+        {yt('n9QGtc2pb-E', 'Фильм «Управляющий» (The Manager)')}
+        <h3>«Управляющий» (The Manager)</h3>
+        <p>Фильм об арбитражном управляющем из России: о работе по закону в стране беззакония и о человеке, которого хотят посадить в тюрьму вопреки закону. Участник трёх кинофестивалей, два приза.</p>
+      </div>
+      <div class="video-card reveal">
+        <a class="film-link" href="{FILM_ROUTE}" target="_blank" rel="noopener">
+          <span class="film-link__en">The Route Is Set. A Trustee’s Case</span>
+          <strong>Путь определён</strong>
+          <span class="film-link__sub">Дело доверительного управляющего</span>
+          <span class="film-link__go">Страница фильма на FilmFreeway {ARROW}</span>
+        </a>
+        <h3>«Путь определён. Дело доверительного управляющего»</h3>
+        <p>Второй фильм обо мне. Страница фильма — на FilmFreeway, международной платформе кинофестивалей.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="section section--dark2" id="video">
   <div class="wrap">
     <div class="section-head reveal">
@@ -669,8 +728,10 @@ def build_about():
       <li><span class="timeline__year">2019</span><div><h3>Совет Европы, Страсбург</h3><p>Международный семинар «Успешное обращение в Европейский суд по правам человека: от теории к практике», 40 часов, лекторы — юристы и судьи ЕСПЧ.</p></div></li>
       <li><span class="timeline__year">2020</span><div><h3>Арбитр Российского юридического турнира</h3><p>Секция «Субсидиарная ответственность. Банкротство».</p></div></li>
       <li><span class="timeline__year">2023–2024</span><div><h3>Международный розыск — и снятие Red Notice</h3><p>Розыск в рамках уголовного дела, связанного с профессиональной деятельностью. В 2024 году Интерпол рассмотрел возражения и снял Red Notice, признав, что нет оснований для розыска, задержания и депортации в Россию.</p></div></li>
+      <li><span class="timeline__year">2024</span><div><h3>Фильм «Управляющий»</h3><p>Фильм о работе арбитражного управляющего и несправедливом уголовном преследовании. Три кинофестиваля, два приза. <a href="#films">Смотреть</a></p></div></li>
       <li><span class="timeline__year">2024</span><div><h3>Стрим «Погружение в банкротство»</h3><p>Еженедельный международный стрим в Telegram-канале <a href="https://t.me/bankrotorg2" target="_blank" rel="noopener">«Банкротство. the other side»</a>. Консультирую арбитражных управляющих в сложных и уголовных ситуациях.</p></div></li>
       <li><span class="timeline__year">2026</span><div><h3>Курсы ООН (UNODC)</h3><p>Противодействие коррупции и судебные нормы поведения и этики.</p></div></li>
+      <li><span class="timeline__year">2026</span><div><h3>XIV Уральский форум арбитражных управляющих</h3><p>Выступление на форуме перед коллегами — арбитражными управляющими.</p></div></li>
     </ol>
   </div>
 </section>
@@ -805,6 +866,116 @@ def build_advice():
          body=body)
 
 
+# Новости хранятся на хостинге (их пишут через /admin/), поэтому news.php собирается
+# как шаблон: шапка и подвал — общие, а список и сама новость — из PHP.
+NEWS_PRELUDE = '''<?php
+require __DIR__ . '/_news/lib.php';
+
+$id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$item = $id ? news_find($id) : null;
+if ($item && empty($item['published']) && !admin_logged_in()) {
+    $item = null;
+}
+
+// Три свежие новости для главной страницы
+if (isset($_GET['format']) && $_GET['format'] === 'json') {
+    header('Content-Type: application/json; charset=utf-8');
+    $out = [];
+    foreach (array_slice(news_published(), 0, 3) as $n) {
+        $out[] = ['title' => $n['title'], 'date' => news_date_ru($n['date']), 'url' => news_url($n),
+                  'cover' => news_cover($n), 'text' => news_excerpt($n, 160)];
+    }
+    echo json_encode($out, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
+if ($id && !$item) {
+    http_response_code(404);
+}
+$all = $id ? [] : news_published();
+$pages = max(1, (int)ceil(count($all) / NEWS_PER_PAGE));
+$p = min($pages, max(1, (int)(isset($_GET['page']) ? $_GET['page'] : 1)));
+$list = array_slice($all, ($p - 1) * NEWS_PER_PAGE, NEWS_PER_PAGE);
+
+$cover = $item ? news_cover($item) : null;
+$metaTitle = $item ? $item['title'] : ($id ? 'Новость не найдена' : 'Новости');
+$metaDesc = $item ? news_excerpt($item, 160) : '%LIST_DESC%';
+$canonical = '%DOMAIN%/news.php' . ($item ? '?id=' . $item['id'] : ($p > 1 ? '?page=' . $p : ''));
+$ogImage = $cover ? ($cover[0] === '/' ? '%DOMAIN%' . $cover : $cover) : '%DOMAIN%/assets/img/echr-desk.jpg';
+?>
+'''
+
+
+def build_news():
+    list_desc = 'Новости Игоря Вышегородцева: выступления, интервью, публикации и события.'
+    prelude = NEWS_PRELUDE.replace('%DOMAIN%', DOMAIN).replace('%LIST_DESC%', list_desc)
+    date = "<?= h(news_date_ru($item['date'])) ?>"
+    item_head = page_head("<?= h($item['title']) ?>", '', [('news.php', 'Новости'), (None, 'Новость')],
+                          eyebrow=date, bg='assets/img/echr-desk.jpg', mod='page-head--news')
+    list_head = page_head('Новости', 'Выступления, интервью, публикации и события. Обсуждение — в Telegram-канале.',
+                          [(None, 'Новости')], eyebrow='Игорь Вышегородцев', bg='assets/img/hero-echr.jpg')
+    missing_head = page_head('Новость не найдена', 'Возможно, её удалили или в адресе ошибка.',
+                             [('news.php', 'Новости'), (None, 'Не найдено')], bg='assets/img/echr-bench.jpg')
+    body = f'''
+<?php if ($item): ?>
+{item_head}
+<?php if (empty($item['published'])): ?>
+<div class="draft-note">Черновик — посетители сайта его не видят</div>
+<?php endif; ?>
+<section class="section">
+  <div class="wrap service-layout">
+    <article class="article news-article">
+      <?= news_render($item) ?>
+      <p class="news-back"><a class="link-arrow" href="news.php"><span aria-hidden="true">←</span> Все новости</a></p>
+    </article>
+    <aside class="aside">
+      <div class="aside-card">
+        <h3>Обсудить вашу ситуацию</h3>
+        <p>Напишите в Telegram — коротко опишите, что происходит. Отвечу лично.</p>
+        <a class="btn btn--gold" href="{TG_PERSONAL}" target="_blank" rel="noopener">{ICON_TG}@AllegatorSnap</a>
+      </div>
+      <div class="aside-card aside-card--light">
+        <h3>Telegram-канал</h3>
+        <p>Новости выходят и в канале — там можно задать вопрос в комментариях.</p>
+        <a class="btn btn--ghost" href="{TG_CHANNEL}" target="_blank" rel="noopener">@mostwantedmanager</a>
+      </div>
+    </aside>
+  </div>
+</section>
+<?php elseif ($id): ?>
+{missing_head}
+<section class="section section--tight">
+  <div class="wrap"><a class="btn btn--primary" href="news.php">Все новости</a></div>
+</section>
+<?php else: ?>
+{list_head}
+<section class="section">
+  <div class="wrap">
+<?php if ($list): ?>
+    <div class="news-grid"><?php foreach ($list as $n) echo news_card($n); ?></div>
+<?php if ($pages > 1): ?>
+    <nav class="news-pages" aria-label="Страницы новостей">
+<?php for ($i = 1; $i <= $pages; $i++): ?>
+      <a href="news.php<?= $i > 1 ? '?page=' . $i : '' ?>"<?= $i === $p ? ' aria-current="page"' : '' ?>><?= $i ?></a>
+<?php endfor; ?>
+    </nav>
+<?php endif; ?>
+<?php else: ?>
+    <div class="news-empty">
+      <p class="lead">Скоро здесь появятся новости.</p>
+      <p>А пока — свежие события в Telegram-канале.</p>
+      <a class="btn btn--primary" href="{TG_CHANNEL}" target="_blank" rel="noopener">{ICON_TG}@mostwantedmanager</a>
+    </div>
+<?php endif; ?>
+  </div>
+</section>
+<?php endif; ?>
+'''
+    page(path='news.php', title='<?= h($metaTitle) ?>', active='news.php',
+         description='<?= h($metaDesc) ?>', body=body, prelude=prelude,
+         canonical='<?= h($canonical) ?>', og_image_url='<?= h($ogImage) ?>')
+
+
 if __name__ == '__main__':
     import sys
     sys.stdout.reconfigure(encoding='utf-8')
@@ -813,6 +984,7 @@ if __name__ == '__main__':
     build_about()
     build_services()
     build_advice()
+    build_news()
     sitemap = ''.join(f'  <url><loc>{u}</loc></url>\n' for u in PAGES)
     with open(os.path.join(ROOT, 'sitemap.xml'), 'w', encoding='utf-8', newline='\n') as f:
         f.write('<?xml version="1.0" encoding="UTF-8"?>\n'

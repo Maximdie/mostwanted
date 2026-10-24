@@ -1,0 +1,4 @@
+# Сюда админка кладёт фото новостей. Отдаём только картинки — никаких скриптов.
+<FilesMatch "(?i)\.(php\d?|phtml|phar|pl|py|cgi|sh|shtml|s?html?|svgz?|js|htaccess)$">
+  Require all denied
+</FilesMatch>

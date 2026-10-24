@@ -4,3 +4,7 @@
 /*.pdf
 __pycache__/
 *.zip
+
+# новости и фото пишет админка прямо на хостинге — в git их нет
+site/_news/data/
+site/uploads/news/

@@ -25,5 +25,13 @@ python -m http.server 8080
 Запасной путь без Actions: cPanel → Git Version Control → Manage → Pull or Deploy →
 **Update from Remote** → **Deploy HEAD Commit** (использует `.cpanel.yml`).
 
+## Новости и админка
+- Раздел: https://mostwanted.consulting/news.php, админка: https://mostwanted.consulting/admin/
+- `site/news.php` собирается из `build.py` (шапка/подвал общие), список и новость выводит PHP.
+- Код — `site/_news/lib.php` и `site/admin/`. Логин и хеш пароля — `site/_news/config.php`
+  (репозиторий публичный, поэтому только хеш; пароль меняется в админке → `_news/data/auth.json`).
+- Сами новости (`site/_news/data/`) и фото (`site/uploads/news/`) живут **только на хостинге**,
+  в git их нет — деплой их не трогает. Бэкап: скачивать эти две папки через File Manager.
+
 ## Видео советов
 Положить файл как `site/assets/video/sovety.mp4` (до 100 МБ — ограничение GitHub; больше — загружать через File Manager).
